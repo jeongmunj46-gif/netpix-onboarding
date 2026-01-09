@@ -232,6 +232,34 @@ export interface DashboardStats {
   weeklyTarget: number
 }
 
+// 수정 히스토리 타입
+export interface ConsultationHistory {
+  id: number
+  consultation_id: number
+  changed_by: string // 수정한 사람
+  changed_at: string // 수정 시간
+  field_name: string // 변경된 필드명
+  old_value: string | null // 이전 값
+  new_value: string | null // 새 값
+}
+
+// 필드 한글명 매핑
+export const FIELD_LABELS: Record<string, string> = {
+  status: '상태',
+  customer_name: '고객명',
+  phone: '연락처',
+  carrier: '통신사',
+  speed: '인터넷 속도',
+  tv_plan: 'TV 플랜',
+  product_summary: '상품명',
+  consultant: '담당자',
+  consultation_note: '상담내용',
+  memo: '비고',
+  follow_up_date: '재상담일',
+  desired_install_date: '설치희망일',
+  moving_date: '이사예정일',
+}
+
 // 상태 색상 매핑
 export const STATUS_COLORS: Record<ConsultationStatus, string> = {
   '재상담필요': 'bg-orange-100 text-orange-800',

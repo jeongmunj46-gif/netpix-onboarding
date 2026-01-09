@@ -29,8 +29,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Search, Plus, Phone, Calendar, Edit, Trash2, Loader2 } from 'lucide-react'
-import { Consultation, ConsultationStatus, STATUS_COLORS, Carrier, CARRIER_OPTIONS, CARRIER_SPEEDS, CARRIER_TV_PLANS } from '@/types'
+import { Search, Plus, Phone, Calendar, Edit, Trash2, Loader2, History } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Consultation, ConsultationStatus, STATUS_COLORS, Carrier, CARRIER_OPTIONS, CARRIER_SPEEDS, CARRIER_TV_PLANS, ConsultationHistory, FIELD_LABELS } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
@@ -46,6 +47,13 @@ const statuses: ConsultationStatus[] = [
 
 type FormData = Partial<Consultation>
 
+// 히스토리 기록용 필드 목록
+const TRACKED_FIELDS = [
+  'status', 'customer_name', 'phone', 'carrier', 'speed', 'tv_plan',
+  'product_summary', 'consultant', 'consultation_note', 'memo',
+  'follow_up_date', 'desired_install_date', 'moving_date'
+]
+
 export default function ConsultationsPage() {
   const { user } = useAuth()
   const [consultations, setConsultations] = useState<Consultation[]>([])
@@ -55,8 +63,54 @@ export default function ConsultationsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [formData, setFormData] = useState<FormData>({})
+  const [originalData, setOriginalData] = useState<FormData>({}) // 수정 전 원본 데이터
   const [isSaving, setIsSaving] = useState(false)
+  const [history, setHistory] = useState<ConsultationHistory[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const { toast } = useToast()
+
+  // 히스토리 불러오기
+  const fetchHistory = async (consultationId: number) => {
+    setIsLoadingHistory(true)
+    const { data, error } = await supabase
+      .from('consultation_history')
+      .select('*')
+      .eq('consultation_id', consultationId)
+      .order('changed_at', { ascending: false })
+
+    if (!error && data) {
+      setHistory(data as ConsultationHistory[])
+    }
+    setIsLoadingHistory(false)
+  }
+
+  // 변경된 필드 히스토리 기록
+  const recordHistory = async (consultationId: number, changedBy: string) => {
+    const changes: { field_name: string; old_value: string | null; new_value: string | null }[] = []
+
+    for (const field of TRACKED_FIELDS) {
+      const oldVal = originalData[field as keyof FormData]
+      const newVal = formData[field as keyof FormData]
+
+      if (String(oldVal || '') !== String(newVal || '')) {
+        changes.push({
+          field_name: field,
+          old_value: oldVal ? String(oldVal) : null,
+          new_value: newVal ? String(newVal) : null,
+        })
+      }
+    }
+
+    if (changes.length > 0) {
+      await supabase.from('consultation_history').insert(
+        changes.map(change => ({
+          consultation_id: consultationId,
+          changed_by: changedBy,
+          ...change,
+        }))
+      )
+    }
+  }
 
   // Supabase에서 상담 목록 불러오기
   const fetchConsultations = async () => {
@@ -136,6 +190,8 @@ export default function ConsultationsPage() {
           variant: 'destructive',
         })
       } else {
+        // 히스토리 기록
+        await recordHistory(editingId, user?.name || '알 수 없음')
         toast({ title: '수정 완료', description: '상담 정보가 수정되었습니다.' })
         await fetchConsultations()
       }
@@ -203,14 +259,19 @@ export default function ConsultationsPage() {
   // 수정 모달 열기
   const handleEdit = (consultation: Consultation) => {
     setFormData(consultation)
+    setOriginalData(consultation) // 원본 데이터 저장 (히스토리 비교용)
     setEditingId(consultation.id)
+    setHistory([])
+    fetchHistory(consultation.id) // 히스토리 불러오기
     setIsDialogOpen(true)
   }
 
   // 새 상담 모달 열기
   const handleNew = () => {
     setFormData({ status: '신규', consultant: user?.name || '' })
+    setOriginalData({})
     setEditingId(null)
+    setHistory([])
     setIsDialogOpen(true)
   }
 
@@ -557,6 +618,38 @@ export default function ConsultationsPage() {
                 placeholder="추가 메모"
               />
             </div>
+
+            {/* 수정 이력 (수정 모드일 때만 표시) */}
+            {editingId && (
+              <div className="space-y-2 pt-4 border-t">
+                <div className="flex items-center gap-2 mb-3">
+                  <History className="h-4 w-4 text-gray-500" />
+                  <label className="text-sm font-medium">수정 이력</label>
+                </div>
+                {isLoadingHistory ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                  </div>
+                ) : history.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">수정 이력이 없습니다</p>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto space-y-2">
+                    {history.map((item) => (
+                      <div key={item.id} className="text-xs bg-gray-50 p-2 rounded">
+                        <div className="flex justify-between text-gray-500 mb-1">
+                          <span className="font-medium">{item.changed_by}</span>
+                          <span>{new Date(item.changed_at).toLocaleString('ko-KR')}</span>
+                        </div>
+                        <div className="text-gray-700">
+                          <span className="font-medium">{FIELD_LABELS[item.field_name] || item.field_name}</span>
+                          : {item.old_value || '(없음)'} → {item.new_value || '(없음)'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter>
