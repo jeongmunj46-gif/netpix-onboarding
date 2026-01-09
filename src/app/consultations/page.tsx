@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Header } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,9 +29,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Search, Plus, Phone, Calendar, Edit, Trash2 } from 'lucide-react'
+import { Search, Plus, Phone, Calendar, Edit, Trash2, Loader2 } from 'lucide-react'
 import { Consultation, ConsultationStatus, STATUS_COLORS, Carrier, InternetSpeed } from '@/types'
 import { useToast } from '@/hooks/use-toast'
+import { supabase } from '@/lib/supabase/client'
+import { useAuth } from '@/contexts/AuthContext'
 
 // 상태 목록
 const statuses: ConsultationStatus[] = [
@@ -50,100 +52,43 @@ const carriers: Carrier[] = ['SKB', 'KT', 'LG']
 // 인터넷 속도 목록
 const speeds: InternetSpeed[] = ['100M', '500M', '1G']
 
-// 임시 데이터
-const initialConsultations: Consultation[] = [
-  {
-    id: 1,
-    created_at: '2024-01-05',
-    updated_at: '2024-01-08',
-    status: '재상담필요',
-    customer_name: '노상원',
-    phone: '010-8803-3244',
-    first_consultation_date: '2024-01-05',
-    follow_up_date: '2024-01-08',
-    moving_date: null,
-    desired_install_date: null,
-    carrier: 'LG',
-    speed: '100M',
-    has_tv: true,
-    tv_plan: null,
-    product_summary: 'LGU+ 100MB+WiFi',
-    consultation_note: '사은품 20+2 / (다음날 연락준다함) 1월 3째주',
-    memo: '반응 좋음',
-    consultant: '정상문',
-  },
-  {
-    id: 2,
-    created_at: '2024-01-05',
-    updated_at: '2024-01-08',
-    status: '재상담필요',
-    customer_name: '박성표',
-    phone: '010-0930-8442',
-    first_consultation_date: '2024-01-05',
-    follow_up_date: '2024-01-08',
-    moving_date: null,
-    desired_install_date: null,
-    carrier: 'SKB',
-    speed: '100M',
-    has_tv: true,
-    tv_plan: '이코노미',
-    product_summary: 'SKB 100MB+이코노미',
-    consultation_note: '43+5.5 / 다음날 연락준다함',
-    memo: '반응 좋음',
-    consultant: '정상문',
-  },
-  {
-    id: 3,
-    created_at: '2024-01-03',
-    updated_at: '2024-01-06',
-    status: '연락안됨',
-    customer_name: '조수창',
-    phone: '010-6880-8128',
-    first_consultation_date: '2024-01-03',
-    follow_up_date: '2024-01-06',
-    moving_date: null,
-    desired_install_date: null,
-    carrier: 'KT',
-    speed: '500M',
-    has_tv: true,
-    tv_plan: '베이직',
-    product_summary: 'KT 500MB+베이직',
-    consultation_note: '통신사 번경도 고려중',
-    memo: null,
-    consultant: '정상문',
-  },
-  {
-    id: 4,
-    created_at: '2024-01-06',
-    updated_at: '2024-01-08',
-    status: '설치완료',
-    customer_name: '하이재',
-    phone: '010-2586-8800',
-    first_consultation_date: '2024-01-06',
-    follow_up_date: null,
-    moving_date: null,
-    desired_install_date: '2024-01-08',
-    carrier: 'SKB',
-    speed: '500M',
-    has_tv: false,
-    tv_plan: null,
-    product_summary: 'SKB 500M',
-    consultation_note: '문자 상담 희망',
-    memo: '연락 안받음/문자',
-    consultant: '정상문',
-  },
-]
-
 type FormData = Partial<Consultation>
 
 export default function ConsultationsPage() {
-  const [consultations, setConsultations] = useState(initialConsultations)
+  const { user } = useAuth()
+  const [consultations, setConsultations] = useState<Consultation[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ConsultationStatus | 'all'>('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [formData, setFormData] = useState<FormData>({})
+  const [isSaving, setIsSaving] = useState(false)
   const { toast } = useToast()
+
+  // Supabase에서 상담 목록 불러오기
+  const fetchConsultations = async () => {
+    setIsLoading(true)
+    const { data, error } = await supabase
+      .from('consultations')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      toast({
+        title: '오류',
+        description: '상담 목록을 불러오는데 실패했습니다.',
+        variant: 'destructive',
+      })
+    } else {
+      setConsultations(data as Consultation[])
+    }
+    setIsLoading(false)
+  }
+
+  useEffect(() => {
+    fetchConsultations()
+  }, [])
 
   // 필터링된 상담 목록
   const filteredConsultations = consultations.filter((consultation) => {
@@ -156,7 +101,7 @@ export default function ConsultationsPage() {
   })
 
   // 새 상담 추가 / 수정
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.customer_name || !formData.phone) {
       toast({
         title: '입력 오류',
@@ -166,52 +111,100 @@ export default function ConsultationsPage() {
       return
     }
 
+    setIsSaving(true)
+
     if (editingId) {
       // 수정
-      setConsultations((prev) =>
-        prev.map((c) =>
-          c.id === editingId
-            ? { ...c, ...formData, updated_at: new Date().toISOString() }
-            : c
-        )
-      )
-      toast({ title: '수정 완료', description: '상담 정보가 수정되었습니다.' })
+      const { error } = await supabase
+        .from('consultations')
+        .update({
+          status: formData.status,
+          customer_name: formData.customer_name,
+          phone: formData.phone,
+          first_consultation_date: formData.first_consultation_date,
+          follow_up_date: formData.follow_up_date || null,
+          moving_date: formData.moving_date || null,
+          desired_install_date: formData.desired_install_date || null,
+          carrier: formData.carrier || null,
+          speed: formData.speed || null,
+          has_tv: formData.has_tv || false,
+          tv_plan: formData.tv_plan || null,
+          product_summary: formData.product_summary || null,
+          consultation_note: formData.consultation_note || null,
+          memo: formData.memo || null,
+          consultant: formData.consultant || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editingId)
+
+      if (error) {
+        toast({
+          title: '수정 실패',
+          description: '상담 정보 수정에 실패했습니다.',
+          variant: 'destructive',
+        })
+      } else {
+        toast({ title: '수정 완료', description: '상담 정보가 수정되었습니다.' })
+        await fetchConsultations()
+      }
     } else {
       // 추가
-      const newConsultation: Consultation = {
-        id: Date.now(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        status: formData.status || '신규',
-        customer_name: formData.customer_name || '',
-        phone: formData.phone || '',
-        first_consultation_date: formData.first_consultation_date || new Date().toISOString().split('T')[0],
-        follow_up_date: formData.follow_up_date || null,
-        moving_date: formData.moving_date || null,
-        desired_install_date: formData.desired_install_date || null,
-        carrier: formData.carrier || null,
-        speed: formData.speed || null,
-        has_tv: formData.has_tv || false,
-        tv_plan: formData.tv_plan || null,
-        product_summary: formData.product_summary || null,
-        consultation_note: formData.consultation_note || null,
-        memo: formData.memo || null,
-        consultant: formData.consultant || null,
+      const { error } = await supabase
+        .from('consultations')
+        .insert({
+          status: formData.status || '신규',
+          customer_name: formData.customer_name,
+          phone: formData.phone,
+          first_consultation_date: formData.first_consultation_date || new Date().toISOString().split('T')[0],
+          follow_up_date: formData.follow_up_date || null,
+          moving_date: formData.moving_date || null,
+          desired_install_date: formData.desired_install_date || null,
+          carrier: formData.carrier || null,
+          speed: formData.speed || null,
+          has_tv: formData.has_tv || false,
+          tv_plan: formData.tv_plan || null,
+          product_summary: formData.product_summary || null,
+          consultation_note: formData.consultation_note || null,
+          memo: formData.memo || null,
+          consultant: user?.name || null,
+        })
+
+      if (error) {
+        toast({
+          title: '등록 실패',
+          description: '상담 등록에 실패했습니다.',
+          variant: 'destructive',
+        })
+      } else {
+        toast({ title: '등록 완료', description: '새 상담이 등록되었습니다.' })
+        await fetchConsultations()
       }
-      setConsultations((prev) => [newConsultation, ...prev])
-      toast({ title: '등록 완료', description: '새 상담이 등록되었습니다.' })
     }
 
+    setIsSaving(false)
     setIsDialogOpen(false)
     setEditingId(null)
     setFormData({})
   }
 
   // 상담 삭제
-  const handleDelete = (id: number) => {
-    if (confirm('정말 삭제하시겠습니까?')) {
-      setConsultations((prev) => prev.filter((c) => c.id !== id))
+  const handleDelete = async (id: number) => {
+    if (!confirm('정말 삭제하시겠습니까?')) return
+
+    const { error } = await supabase
+      .from('consultations')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      toast({
+        title: '삭제 실패',
+        description: '상담 삭제에 실패했습니다.',
+        variant: 'destructive',
+      })
+    } else {
       toast({ title: '삭제 완료', description: '상담이 삭제되었습니다.' })
+      await fetchConsultations()
     }
   }
 
@@ -224,7 +217,7 @@ export default function ConsultationsPage() {
 
   // 새 상담 모달 열기
   const handleNew = () => {
-    setFormData({ status: '신규' })
+    setFormData({ status: '신규', consultant: user?.name || '' })
     setEditingId(null)
     setIsDialogOpen(true)
   }
@@ -278,90 +271,96 @@ export default function ConsultationsPage() {
 
         {/* 상담 목록 테이블 */}
         <div className="bg-white rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-24">날짜</TableHead>
-                <TableHead className="w-28">상태</TableHead>
-                <TableHead>고객명</TableHead>
-                <TableHead>연락처</TableHead>
-                <TableHead>상품</TableHead>
-                <TableHead>상담내용</TableHead>
-                <TableHead className="w-24">재상담일</TableHead>
-                <TableHead className="w-20">담당자</TableHead>
-                <TableHead className="w-20">관리</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredConsultations.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-gray-500">
-                    {searchQuery || statusFilter !== 'all'
-                      ? '검색 결과가 없습니다'
-                      : '등록된 상담이 없습니다. 새 상담을 등록해주세요.'}
-                  </TableCell>
+                  <TableHead className="w-24">날짜</TableHead>
+                  <TableHead className="w-28">상태</TableHead>
+                  <TableHead>고객명</TableHead>
+                  <TableHead>연락처</TableHead>
+                  <TableHead>상품</TableHead>
+                  <TableHead>상담내용</TableHead>
+                  <TableHead className="w-24">재상담일</TableHead>
+                  <TableHead className="w-20">담당자</TableHead>
+                  <TableHead className="w-20">관리</TableHead>
                 </TableRow>
-              ) : (
-                filteredConsultations.map((consultation) => (
-                  <TableRow key={consultation.id} className="hover:bg-gray-50">
-                    <TableCell className="text-sm text-gray-500">
-                      {formatDate(consultation.first_consultation_date)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={STATUS_COLORS[consultation.status]}>
-                        {consultation.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">{consultation.customer_name}</TableCell>
-                    <TableCell>
-                      <a
-                        href={`tel:${consultation.phone}`}
-                        className="flex items-center gap-1 text-blue-600 hover:underline"
-                      >
-                        <Phone className="h-3 w-3" />
-                        {consultation.phone}
-                      </a>
-                    </TableCell>
-                    <TableCell className="text-sm">{consultation.product_summary || '-'}</TableCell>
-                    <TableCell className="text-sm text-gray-600 max-w-xs truncate">
-                      {consultation.consultation_note || '-'}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {consultation.follow_up_date ? (
-                        <span className="flex items-center gap-1 text-orange-600">
-                          <Calendar className="h-3 w-3" />
-                          {formatDate(consultation.follow_up_date)}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm">{consultation.consultant || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleEdit(consultation)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-600 hover:text-red-700"
-                          onClick={() => handleDelete(consultation.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {filteredConsultations.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                      {searchQuery || statusFilter !== 'all'
+                        ? '검색 결과가 없습니다'
+                        : '등록된 상담이 없습니다. 새 상담을 등록해주세요.'}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  filteredConsultations.map((consultation) => (
+                    <TableRow key={consultation.id} className="hover:bg-gray-50">
+                      <TableCell className="text-sm text-gray-500">
+                        {formatDate(consultation.first_consultation_date)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={STATUS_COLORS[consultation.status]}>
+                          {consultation.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{consultation.customer_name}</TableCell>
+                      <TableCell>
+                        <a
+                          href={`tel:${consultation.phone}`}
+                          className="flex items-center gap-1 text-blue-600 hover:underline"
+                        >
+                          <Phone className="h-3 w-3" />
+                          {consultation.phone}
+                        </a>
+                      </TableCell>
+                      <TableCell className="text-sm">{consultation.product_summary || '-'}</TableCell>
+                      <TableCell className="text-sm text-gray-600 max-w-xs truncate">
+                        {consultation.consultation_note || '-'}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {consultation.follow_up_date ? (
+                          <span className="flex items-center gap-1 text-orange-600">
+                            <Calendar className="h-3 w-3" />
+                            {formatDate(consultation.follow_up_date)}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm">{consultation.consultant || '-'}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleEdit(consultation)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-600 hover:text-red-700"
+                            onClick={() => handleDelete(consultation.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </div>
       </div>
 
@@ -525,10 +524,19 @@ export default function ConsultationsPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
               취소
             </Button>
-            <Button onClick={handleSave}>{editingId ? '수정' : '등록'}</Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  저장 중...
+                </>
+              ) : (
+                editingId ? '수정' : '등록'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
