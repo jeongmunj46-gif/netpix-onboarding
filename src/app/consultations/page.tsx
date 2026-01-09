@@ -90,7 +90,12 @@ export default function ConsultationsPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS)
   const [showColumnSettings, setShowColumnSettings] = useState(false)
+  const [consultantFilter, setConsultantFilter] = useState<string[]>([]) // 선택된 담당자들
+  const [showConsultantFilter, setShowConsultantFilter] = useState(false)
   const { toast } = useToast()
+
+  // 전체 담당자 목록 추출
+  const allConsultants = Array.from(new Set(consultations.map(c => c.consultant).filter(Boolean) as string[]))
 
   // 컬럼 표시/숨김 토글
   const toggleColumn = (key: ColumnKey) => {
@@ -176,7 +181,8 @@ export default function ConsultationsPage() {
       consultation.phone.includes(searchQuery) ||
       consultation.product_summary?.includes(searchQuery)
     const matchesStatus = statusFilter === 'all' || consultation.status === statusFilter
-    return matchesSearch && matchesStatus
+    const matchesConsultant = consultantFilter.length === 0 || consultantFilter.includes(consultation.consultant || '')
+    return matchesSearch && matchesStatus && matchesConsultant
   })
 
   // 새 상담 추가 / 수정
@@ -358,6 +364,52 @@ export default function ConsultationsPage() {
               ))}
             </SelectContent>
           </Select>
+          {/* 담당자 필터 */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              onClick={() => setShowConsultantFilter(!showConsultantFilter)}
+              className={consultantFilter.length > 0 ? 'border-blue-500 text-blue-600' : ''}
+            >
+              담당자 {consultantFilter.length > 0 && `(${consultantFilter.length})`}
+            </Button>
+            {showConsultantFilter && (
+              <div className="absolute top-full left-0 mt-1 bg-white border rounded-lg p-3 shadow-lg z-10 min-w-[180px]">
+                <div className="flex items-center justify-between mb-2 pb-2 border-b">
+                  <span className="text-sm font-medium">담당자 선택</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConsultantFilter([])}
+                    className="text-xs h-6 px-2"
+                  >
+                    해제
+                  </Button>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {allConsultants.length === 0 ? (
+                    <p className="text-sm text-gray-500">담당자 없음</p>
+                  ) : (
+                    allConsultants.map((consultant) => (
+                      <label key={consultant} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={consultantFilter.includes(consultant)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setConsultantFilter([...consultantFilter, consultant])
+                            } else {
+                              setConsultantFilter(consultantFilter.filter(c => c !== consultant))
+                            }
+                          }}
+                        />
+                        {consultant}
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           <Button
             variant="outline"
             size="icon"
