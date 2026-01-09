@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { Header } from '@/components/layout'
 import { StatCard, QuickLinks, TodaySchedule } from '@/components/dashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Phone, CalendarCheck, Wrench, CheckCircle, TrendingUp, Target, Loader2 } from 'lucide-react'
-import { Consultation } from '@/types'
+import { Phone, CalendarCheck, Wrench, CheckCircle, TrendingUp, Target, Loader2, Users } from 'lucide-react'
+import { Consultation, ROLE_PERMISSIONS } from '@/types'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -66,6 +66,34 @@ export default function DashboardPage() {
     inProgress: consultations.filter(c => ['신규', '재상담필요', '상담완료'].includes(c.status)).length,
     noInterest: consultations.filter(c => c.status === '의향없음/타업체').length,
   }
+
+  // 담당자별 통계 계산
+  const consultantStats = (() => {
+    const statsMap = new Map<string, {
+      name: string
+      total: number
+      contracts: number
+      completed: number
+      cancelled: number
+    }>()
+
+    consultations.forEach(c => {
+      const name = c.consultant || '미배정'
+      if (!statsMap.has(name)) {
+        statsMap.set(name, { name, total: 0, contracts: 0, completed: 0, cancelled: 0 })
+      }
+      const stat = statsMap.get(name)!
+      stat.total++
+      if (c.status === '계약완료') stat.contracts++
+      if (c.status === '계약완료' && c.desired_install_date) stat.completed++ // 설치일 있으면 완료로 간주
+      if (c.status === '의향없음/타업체') stat.cancelled++
+    })
+
+    return Array.from(statsMap.values()).filter(s => s.name !== '미배정').sort((a, b) => b.contracts - a.contracts)
+  })()
+
+  // C레벨/팀장인지 확인
+  const canViewStats = user?.role && ['c-level', 'director'].includes(user.role)
 
   const now = new Date()
   const greeting = now.getHours() < 12 ? '좋은 아침이에요' : now.getHours() < 18 ? '좋은 오후예요' : '좋은 저녁이에요'
@@ -210,6 +238,59 @@ export default function DashboardPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* 담당자별 통계 (C레벨/팀장만 표시) */}
+            {canViewStats && consultantStats.length > 0 && (
+              <Card className="overflow-hidden border-0 shadow-lg shadow-slate-200/50">
+                <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Users className="h-5 w-5 text-indigo-500" />
+                    담당자별 실적
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {consultantStats.map((stat) => {
+                      const conversionRate = stat.total > 0 ? Math.round((stat.contracts / stat.total) * 100) : 0
+                      const cancelRate = stat.total > 0 ? Math.round((stat.cancelled / stat.total) * 100) : 0
+
+                      return (
+                        <div
+                          key={stat.name}
+                          className="p-4 bg-gradient-to-br from-white to-slate-50 rounded-xl border border-slate-100 hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-slate-800">{stat.name}</h4>
+                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                              {conversionRate}% 전환
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div className="text-center p-2 bg-blue-50 rounded-lg">
+                              <p className="text-lg font-bold text-blue-600">{stat.total}</p>
+                              <p className="text-xs text-blue-600/70">총 상담</p>
+                            </div>
+                            <div className="text-center p-2 bg-purple-50 rounded-lg">
+                              <p className="text-lg font-bold text-purple-600">{stat.contracts}</p>
+                              <p className="text-xs text-purple-600/70">계약</p>
+                            </div>
+                            <div className="text-center p-2 bg-green-50 rounded-lg">
+                              <p className="text-lg font-bold text-green-600">{stat.completed}</p>
+                              <p className="text-xs text-green-600/70">설치완료</p>
+                            </div>
+                            <div className="text-center p-2 bg-slate-50 rounded-lg">
+                              <p className="text-lg font-bold text-slate-600">{cancelRate}%</p>
+                              <p className="text-xs text-slate-600/70">취소율</p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
       </div>
