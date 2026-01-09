@@ -30,27 +30,19 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Search, Plus, Phone, Calendar, Edit, Trash2, Loader2 } from 'lucide-react'
-import { Consultation, ConsultationStatus, STATUS_COLORS, Carrier, InternetSpeed } from '@/types'
+import { Consultation, ConsultationStatus, STATUS_COLORS, Carrier, CARRIER_OPTIONS, CARRIER_SPEEDS, CARRIER_TV_PLANS } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 
 // 상태 목록
 const statuses: ConsultationStatus[] = [
-  '신규',
   '재상담필요',
-  '연락안됨',
+  '신규',
+  '계약완료',
   '상담완료',
-  '접수완료',
-  '설치완료',
-  '취소',
+  '의향없음/타업체',
 ]
-
-// 통신사 목록
-const carriers: Carrier[] = ['SKB', 'KT', 'LG']
-
-// 인터넷 속도 목록
-const speeds: InternetSpeed[] = ['100M', '500M', '1G']
 
 type FormData = Partial<Consultation>
 
@@ -433,17 +425,25 @@ export default function ConsultationsPage() {
                 <label className="text-sm font-medium">통신사</label>
                 <Select
                   value={formData.carrier || ''}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, carrier: value as Carrier })
-                  }
+                  onValueChange={(value) => {
+                    const newCarrier = value as Carrier
+                    const newProductSummary = newCarrier
+                    setFormData({
+                      ...formData,
+                      carrier: newCarrier,
+                      speed: '', // 통신사 변경 시 속도 초기화
+                      tv_plan: '', // 통신사 변경 시 TV플랜 초기화
+                      product_summary: newCarrier, // 상품명 자동 생성
+                    })
+                  }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="선택" />
+                    <SelectValue placeholder="통신사 선택" />
                   </SelectTrigger>
                   <SelectContent>
-                    {carriers.map((carrier) => (
-                      <SelectItem key={carrier} value={carrier}>
-                        {carrier}
+                    {CARRIER_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -453,15 +453,22 @@ export default function ConsultationsPage() {
                 <label className="text-sm font-medium">인터넷 속도</label>
                 <Select
                   value={formData.speed || ''}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, speed: value as InternetSpeed })
-                  }
+                  onValueChange={(value) => {
+                    const parts = [formData.carrier, value]
+                    if (formData.tv_plan) parts.push(formData.tv_plan)
+                    setFormData({
+                      ...formData,
+                      speed: value,
+                      product_summary: parts.filter(Boolean).join(' / '),
+                    })
+                  }}
+                  disabled={!formData.carrier}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="선택" />
+                    <SelectValue placeholder={formData.carrier ? "속도 선택" : "통신사 먼저 선택"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {speeds.map((speed) => (
+                    {formData.carrier && CARRIER_SPEEDS[formData.carrier]?.map((speed) => (
                       <SelectItem key={speed} value={speed}>
                         {speed}
                       </SelectItem>
@@ -470,12 +477,41 @@ export default function ConsultationsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">상품 요약</label>
-                <Input
-                  value={formData.product_summary || ''}
-                  onChange={(e) => setFormData({ ...formData, product_summary: e.target.value })}
-                  placeholder="SKB 500M+TV"
-                />
+                <label className="text-sm font-medium">TV 플랜</label>
+                <Select
+                  value={formData.tv_plan || ''}
+                  onValueChange={(value) => {
+                    const parts = [formData.carrier, formData.speed]
+                    if (value) parts.push(value)
+                    setFormData({
+                      ...formData,
+                      tv_plan: value,
+                      has_tv: value !== '',
+                      product_summary: parts.filter(Boolean).join(' / '),
+                    })
+                  }}
+                  disabled={!formData.carrier}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={formData.carrier ? "TV 플랜 선택" : "통신사 먼저 선택"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">인터넷만</SelectItem>
+                    {formData.carrier && CARRIER_TV_PLANS[formData.carrier]?.map((plan) => (
+                      <SelectItem key={plan} value={plan}>
+                        {plan}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* 자동 생성된 상품명 표시 */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">상품명 (자동생성)</label>
+              <div className="px-3 py-2 bg-gray-100 rounded-md text-sm font-medium text-gray-700 min-h-[40px] flex items-center">
+                {formData.product_summary || '통신사, 속도, TV를 선택하면 자동으로 생성됩니다'}
               </div>
             </div>
 

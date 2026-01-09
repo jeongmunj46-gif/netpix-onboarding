@@ -27,7 +27,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 
 // 계약 관련 상태만 필터링
-const CONTRACT_STATUSES = ['접수완료', '설치완료']
+const CONTRACT_STATUSES = ['계약완료']
 
 export default function ContractsPage() {
   const [contracts, setContracts] = useState<Consultation[]>([])
@@ -64,8 +64,7 @@ export default function ContractsPage() {
 
   // 상태별 카운트
   const statusCounts = {
-    접수완료: contracts.filter(c => c.status === '접수완료').length,
-    설치완료: contracts.filter(c => c.status === '설치완료').length,
+    계약완료: contracts.filter(c => c.status === '계약완료').length,
   }
 
   const getDaysUntil = (date: string | null) => {
@@ -149,23 +148,12 @@ export default function ContractsPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4 flex items-center gap-4">
-              <div className="p-3 bg-blue-100 rounded-full">
-                <FileText className="h-5 w-5 text-blue-600" />
+              <div className="p-3 bg-purple-100 rounded-full">
+                <FileText className="h-5 w-5 text-purple-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-500">접수완료</p>
-                <p className="text-2xl font-bold">{statusCounts.접수완료}건</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="p-3 bg-green-100 rounded-full">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">설치완료</p>
-                <p className="text-2xl font-bold">{statusCounts.설치완료}건</p>
+                <p className="text-sm text-gray-500">계약완료</p>
+                <p className="text-2xl font-bold">{statusCounts.계약완료}건</p>
               </div>
             </CardContent>
           </Card>

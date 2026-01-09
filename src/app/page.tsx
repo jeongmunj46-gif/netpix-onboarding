@@ -51,20 +51,20 @@ export default function DashboardPage() {
   weekEnd.setDate(weekStart.getDate() + 7)
 
   const weeklyScheduled = consultations.filter(c => {
-    if (!c.desired_install_date || c.status !== '접수완료') return false
+    if (!c.desired_install_date || c.status !== '계약완료') return false
     const installDate = new Date(c.desired_install_date)
     return installDate >= weekStart && installDate < weekEnd
   }).length
 
-  // 설치 완료
-  const completedCount = consultations.filter(c => c.status === '설치완료').length
+  // 계약 완료
+  const completedCount = consultations.filter(c => c.status === '계약완료').length
 
   // 주간 현황
   const weeklyStats = {
     total: consultations.length,
     completed: completedCount,
-    inProgress: consultations.filter(c => ['신규', '재상담필요', '연락안됨', '상담완료', '접수완료'].includes(c.status)).length,
-    cancelled: consultations.filter(c => c.status === '취소').length,
+    inProgress: consultations.filter(c => ['신규', '재상담필요', '상담완료'].includes(c.status)).length,
+    noInterest: consultations.filter(c => c.status === '의향없음/타업체').length,
   }
 
   const now = new Date()
@@ -203,9 +203,9 @@ export default function DashboardPage() {
                     <p className="text-2xl font-bold text-amber-600">{weeklyStats.inProgress}</p>
                     <p className="text-xs text-amber-600/70 mt-1">진행 중</p>
                   </div>
-                  <div className="text-center p-4 rounded-xl bg-rose-50 hover:bg-rose-100 transition-colors">
-                    <p className="text-2xl font-bold text-rose-600">{weeklyStats.cancelled}</p>
-                    <p className="text-xs text-rose-600/70 mt-1">취소</p>
+                  <div className="text-center p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                    <p className="text-2xl font-bold text-slate-600">{weeklyStats.noInterest}</p>
+                    <p className="text-xs text-slate-600/70 mt-1">의향없음</p>
                   </div>
                 </div>
               </CardContent>
