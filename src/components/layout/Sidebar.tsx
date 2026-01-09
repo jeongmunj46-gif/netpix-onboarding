@@ -22,7 +22,7 @@ import {
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
-import { ROLE_LABELS, ROLE_PERMISSIONS } from '@/types'
+import { ROLE_LABELS } from '@/types'
 
 interface NavItem {
   name: string

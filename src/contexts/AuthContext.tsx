@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { User, UserRole, ROLE_PERMISSIONS, DEFAULT_USERS } from '@/types'
+import { User, ROLE_PERMISSIONS, DEFAULT_USERS } from '@/types'
 
 interface AuthContextType {
   user: User | null

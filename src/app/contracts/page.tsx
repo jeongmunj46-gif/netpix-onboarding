@@ -156,7 +156,7 @@ export default function ContractsPage() {
         {/* 안내 메시지 */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-700">
-            💡 <strong>팁:</strong> 상담 관리에서 "개통완료" 상태로 변경하면 자동으로 계약 관리로
+            💡 <strong>팁:</strong> 상담 관리에서 &quot;개통완료&quot; 상태로 변경하면 자동으로 계약 관리로
             이동됩니다.
           </p>
         </div>
