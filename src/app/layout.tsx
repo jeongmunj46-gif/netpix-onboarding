@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import { Sidebar } from '@/components/layout'
+import { AuthLayout } from '@/components/layout'
 import { Toaster } from '@/components/ui/toaster'
 import { AuthProvider } from '@/contexts/AuthContext'
 
@@ -18,12 +18,9 @@ export default function RootLayout({
     <html lang="ko">
       <body className="antialiased">
         <AuthProvider>
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <main className="flex-1 ml-64 transition-all duration-300">
-              {children}
-            </main>
-          </div>
+          <AuthLayout>
+            {children}
+          </AuthLayout>
           <Toaster />
         </AuthProvider>
       </body>

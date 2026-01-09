@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Shield,
   Lock,
+  LogOut,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -90,7 +91,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const { user, users, setUser, hasPermission } = useAuth()
+  const { user, users, setUser, hasPermission, logout } = useAuth()
 
   // 페이지별 권한 체크
   const getPagePermission = (href: string): 'full' | 'readonly' | 'none' => {
@@ -358,6 +359,19 @@ export function Sidebar() {
                       )}
                     </button>
                   ))}
+                </div>
+                {/* 로그아웃 버튼 */}
+                <div className="border-t border-slate-200 p-2">
+                  <button
+                    onClick={() => {
+                      logout()
+                      setUserMenuOpen(false)
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span className="text-sm font-medium">로그아웃</span>
+                  </button>
                 </div>
               </div>
             )}
