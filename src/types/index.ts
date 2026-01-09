@@ -43,7 +43,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, {
 // 기본 사용자 목록
 export const DEFAULT_USERS: User[] = [
   { id: 1, name: '대표', role: 'c-level' },
-  { id: 2, name: '정상문', role: 'director' },
+  { id: 2, name: '팀장', role: 'director' },
   { id: 3, name: '신입직원', role: 'staff' },
 ]
 
