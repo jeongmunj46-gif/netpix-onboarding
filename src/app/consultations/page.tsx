@@ -29,7 +29,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Search, Plus, Phone, Calendar, Edit, Trash2, Loader2, History } from 'lucide-react'
+import { Search, Plus, Phone, Calendar, Edit, Trash2, Loader2, History, Settings2, GripVertical } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Consultation, ConsultationStatus, STATUS_COLORS, Carrier, CARRIER_OPTIONS, CARRIER_SPEEDS, CARRIER_TV_PLANS, ConsultationHistory, FIELD_LABELS } from '@/types'
 import { useToast } from '@/hooks/use-toast'
@@ -43,6 +44,26 @@ const statuses: ConsultationStatus[] = [
   '계약완료',
   '상담완료',
   '의향없음/타업체',
+]
+
+// 컬럼 설정
+type ColumnKey = 'date' | 'status' | 'customer_name' | 'phone' | 'product' | 'note' | 'follow_up' | 'consultant'
+
+interface ColumnConfig {
+  key: ColumnKey
+  label: string
+  visible: boolean
+}
+
+const DEFAULT_COLUMNS: ColumnConfig[] = [
+  { key: 'date', label: '날짜', visible: true },
+  { key: 'status', label: '상태', visible: true },
+  { key: 'customer_name', label: '고객명', visible: true },
+  { key: 'phone', label: '연락처', visible: true },
+  { key: 'product', label: '상품', visible: true },
+  { key: 'note', label: '상담내용', visible: true },
+  { key: 'follow_up', label: '재상담일', visible: true },
+  { key: 'consultant', label: '담당자', visible: true },
 ]
 
 type FormData = Partial<Consultation>
@@ -67,7 +88,19 @@ export default function ConsultationsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [history, setHistory] = useState<ConsultationHistory[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS)
+  const [showColumnSettings, setShowColumnSettings] = useState(false)
   const { toast } = useToast()
+
+  // 컬럼 표시/숨김 토글
+  const toggleColumn = (key: ColumnKey) => {
+    setColumns(cols => cols.map(col =>
+      col.key === key ? { ...col, visible: !col.visible } : col
+    ))
+  }
+
+  // 표시할 컬럼만 필터
+  const visibleColumns = columns.filter(col => col.visible)
 
   // 히스토리 불러오기
   const fetchHistory = async (consultationId: number) => {
@@ -192,6 +225,15 @@ export default function ConsultationsPage() {
       } else {
         // 히스토리 기록
         await recordHistory(editingId, user?.name || '알 수 없음')
+
+        // 담당자 변경 알림
+        if (originalData.consultant !== formData.consultant) {
+          toast({
+            title: '담당자 변경됨',
+            description: `${originalData.consultant || '없음'} → ${formData.consultant || '없음'}`,
+          })
+        }
+
         toast({ title: '수정 완료', description: '상담 정보가 수정되었습니다.' })
         await fetchConsultations()
       }
@@ -316,14 +358,53 @@ export default function ConsultationsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setShowColumnSettings(!showColumnSettings)}
+            className="relative"
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
           <Button onClick={handleNew}>
             <Plus className="h-4 w-4 mr-2" />
             새 상담 등록
           </Button>
         </div>
 
+        {/* 컬럼 설정 패널 */}
+        {showColumnSettings && (
+          <div className="bg-white border rounded-lg p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium">표시할 컬럼 선택</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setColumns(DEFAULT_COLUMNS)}
+                className="text-xs"
+              >
+                기본값으로
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {columns.map((col) => (
+                <label
+                  key={col.key}
+                  className="flex items-center gap-2 text-sm cursor-pointer"
+                >
+                  <Checkbox
+                    checked={col.visible}
+                    onCheckedChange={() => toggleColumn(col.key)}
+                  />
+                  {col.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 상담 목록 테이블 */}
-        <div className="bg-white rounded-lg border">
+        <div className="bg-white rounded-lg border overflow-x-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
@@ -332,21 +413,18 @@ export default function ConsultationsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-24">날짜</TableHead>
-                  <TableHead className="w-28">상태</TableHead>
-                  <TableHead>고객명</TableHead>
-                  <TableHead>연락처</TableHead>
-                  <TableHead>상품</TableHead>
-                  <TableHead>상담내용</TableHead>
-                  <TableHead className="w-24">재상담일</TableHead>
-                  <TableHead className="w-20">담당자</TableHead>
+                  {visibleColumns.map((col) => (
+                    <TableHead key={col.key} className={col.key === 'note' ? '' : 'whitespace-nowrap'}>
+                      {col.label}
+                    </TableHead>
+                  ))}
                   <TableHead className="w-20">관리</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredConsultations.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={visibleColumns.length + 1} className="text-center py-8 text-gray-500">
                       {searchQuery || statusFilter !== 'all'
                         ? '검색 결과가 없습니다'
                         : '등록된 상담이 없습니다. 새 상담을 등록해주세요.'}
@@ -355,39 +433,37 @@ export default function ConsultationsPage() {
                 ) : (
                   filteredConsultations.map((consultation) => (
                     <TableRow key={consultation.id} className="hover:bg-gray-50">
-                      <TableCell className="text-sm text-gray-500">
-                        {formatDate(consultation.first_consultation_date)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={STATUS_COLORS[consultation.status]}>
-                          {consultation.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium">{consultation.customer_name}</TableCell>
-                      <TableCell>
-                        <a
-                          href={`tel:${consultation.phone}`}
-                          className="flex items-center gap-1 text-blue-600 hover:underline"
-                        >
-                          <Phone className="h-3 w-3" />
-                          {consultation.phone}
-                        </a>
-                      </TableCell>
-                      <TableCell className="text-sm">{consultation.product_summary || '-'}</TableCell>
-                      <TableCell className="text-sm text-gray-600 max-w-xs truncate">
-                        {consultation.consultation_note || '-'}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {consultation.follow_up_date ? (
-                          <span className="flex items-center gap-1 text-orange-600">
-                            <Calendar className="h-3 w-3" />
-                            {formatDate(consultation.follow_up_date)}
-                          </span>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">{consultation.consultant || '-'}</TableCell>
+                      {visibleColumns.map((col) => (
+                        <TableCell key={col.key} className={col.key === 'note' ? 'text-sm text-gray-600 max-w-xs truncate' : 'text-sm'}>
+                          {col.key === 'date' && formatDate(consultation.first_consultation_date)}
+                          {col.key === 'status' && (
+                            <Badge className={STATUS_COLORS[consultation.status]}>
+                              {consultation.status}
+                            </Badge>
+                          )}
+                          {col.key === 'customer_name' && <span className="font-medium">{consultation.customer_name}</span>}
+                          {col.key === 'phone' && (
+                            <a
+                              href={`tel:${consultation.phone}`}
+                              className="flex items-center gap-1 text-blue-600 hover:underline"
+                            >
+                              <Phone className="h-3 w-3" />
+                              {consultation.phone}
+                            </a>
+                          )}
+                          {col.key === 'product' && (consultation.product_summary || '-')}
+                          {col.key === 'note' && (consultation.consultation_note || '-')}
+                          {col.key === 'follow_up' && (
+                            consultation.follow_up_date ? (
+                              <span className="flex items-center gap-1 text-orange-600">
+                                <Calendar className="h-3 w-3" />
+                                {formatDate(consultation.follow_up_date)}
+                              </span>
+                            ) : '-'
+                          )}
+                          {col.key === 'consultant' && (consultation.consultant || '-')}
+                        </TableCell>
+                      ))}
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Button
