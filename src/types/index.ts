@@ -223,6 +223,15 @@ export interface Config {
   updated_at: string
 }
 
+// 거래처별 DB 광고비 타입
+export interface AdCost {
+  id: number
+  vendor_name: string // 거래처명
+  cost_per_db: number // DB당 광고비
+  created_at: string
+  updated_at: string
+}
+
 // Dashboard 통계 타입
 export interface DashboardStats {
   todayConsultations: number

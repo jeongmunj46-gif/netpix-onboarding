@@ -27,9 +27,13 @@ import {
   Clock,
   UserCheck,
   Loader2,
+  DollarSign,
+  Plus,
 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase/client'
-import { UserRole, ROLE_LABELS } from '@/types'
+import { UserRole, ROLE_LABELS, AdCost } from '@/types'
+import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
 
@@ -48,7 +52,15 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
 
+  // 광고비 관리
+  const [adCosts, setAdCosts] = useState<AdCost[]>([])
+  const [newVendorName, setNewVendorName] = useState('')
+  const [newCostPerDb, setNewCostPerDb] = useState('')
+  const [isLoadingAdCosts, setIsLoadingAdCosts] = useState(true)
+  const { toast } = useToast()
+
   const canWrite = hasPermission('admin', 'write')
+  const isCLevel = currentUser?.role === 'c-level'
 
   // 사용자 목록 불러오기
   const fetchUsers = async () => {
@@ -69,7 +81,60 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchUsers()
+    fetchAdCosts()
   }, [])
+
+  // 광고비 목록 불러오기
+  const fetchAdCosts = async () => {
+    setIsLoadingAdCosts(true)
+    const { data } = await supabase
+      .from('ad_costs')
+      .select('*')
+      .order('vendor_name', { ascending: true })
+
+    if (data) {
+      setAdCosts(data as AdCost[])
+    }
+    setIsLoadingAdCosts(false)
+  }
+
+  // 광고비 추가
+  const addAdCost = async () => {
+    if (!newVendorName.trim() || !newCostPerDb) {
+      toast({ title: '입력 오류', description: '거래처명과 DB당 광고비를 입력하세요.', variant: 'destructive' })
+      return
+    }
+
+    const { error } = await supabase.from('ad_costs').insert({
+      vendor_name: newVendorName.trim(),
+      cost_per_db: parseInt(newCostPerDb),
+    })
+
+    if (error) {
+      toast({ title: '추가 실패', description: '이미 존재하는 거래처명입니다.', variant: 'destructive' })
+    } else {
+      toast({ title: '추가 완료', description: '거래처 광고비가 등록되었습니다.' })
+      setNewVendorName('')
+      setNewCostPerDb('')
+      fetchAdCosts()
+    }
+  }
+
+  // 광고비 삭제
+  const deleteAdCost = async (id: number) => {
+    if (!confirm('정말 삭제하시겠습니까?')) return
+
+    await supabase.from('ad_costs').delete().eq('id', id)
+    toast({ title: '삭제 완료', description: '거래처 광고비가 삭제되었습니다.' })
+    fetchAdCosts()
+  }
+
+  // 광고비 수정
+  const updateAdCost = async (id: number, newCost: number) => {
+    await supabase.from('ad_costs').update({ cost_per_db: newCost, updated_at: new Date().toISOString() }).eq('id', id)
+    toast({ title: '수정 완료', description: '광고비가 수정되었습니다.' })
+    fetchAdCosts()
+  }
 
   // 사용자 승인
   const approveUser = async (userId: number) => {
@@ -142,6 +207,12 @@ export default function AdminPage() {
               <Database className="h-4 w-4" />
               데이터 관리
             </TabsTrigger>
+            {isCLevel && (
+              <TabsTrigger value="adcosts" className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                광고비 관리
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* 사용자 관리 */}
@@ -408,6 +479,92 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* 광고비 관리 (C레벨 전용) */}
+          {isCLevel && (
+            <TabsContent value="adcosts" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-green-600" />
+                    <CardTitle>거래처별 DB 광고비</CardTitle>
+                  </div>
+                  <CardDescription>
+                    거래처별로 DB 1건당 광고비를 설정하세요. 이 데이터로 DB당 성사 금액을 계산합니다.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {/* 새 거래처 추가 */}
+                  <div className="flex gap-3 mb-6 p-4 bg-slate-50 rounded-lg">
+                    <Input
+                      placeholder="거래처명"
+                      value={newVendorName}
+                      onChange={(e) => setNewVendorName(e.target.value)}
+                      className="max-w-[200px]"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="DB당 광고비 (원)"
+                      value={newCostPerDb}
+                      onChange={(e) => setNewCostPerDb(e.target.value)}
+                      className="max-w-[180px]"
+                    />
+                    <Button onClick={addAdCost}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      추가
+                    </Button>
+                  </div>
+
+                  {/* 거래처 목록 */}
+                  {isLoadingAdCosts ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                    </div>
+                  ) : adCosts.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">등록된 거래처가 없습니다.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {adCosts.map((cost) => (
+                        <div
+                          key={cost.id}
+                          className="flex items-center justify-between p-4 border rounded-lg"
+                        >
+                          <div>
+                            <p className="font-medium">{cost.vendor_name}</p>
+                            <p className="text-sm text-gray-500">
+                              마지막 수정: {new Date(cost.updated_at).toLocaleDateString('ko-KR')}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Input
+                              type="number"
+                              defaultValue={cost.cost_per_db}
+                              onBlur={(e) => {
+                                const val = parseInt(e.target.value)
+                                if (val !== cost.cost_per_db) {
+                                  updateAdCost(cost.id, val)
+                                }
+                              }}
+                              className="w-32 text-right"
+                            />
+                            <span className="text-sm text-gray-500">원/건</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                              onClick={() => deleteAdCost(cost.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
